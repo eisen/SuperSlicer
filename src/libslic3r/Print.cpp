@@ -479,7 +479,7 @@ static inline void model_volume_list_copy_configs(ModelObject &model_object_dst,
         assert(mv_src.id() == mv_dst.id());
         // Copy the ModelVolume data.
         mv_dst.name   = mv_src.name;
-        mv_dst.config.assign_config(mv_src.config);
+        mv_dst.set_config().assign_config(mv_src.config());
         assert(mv_dst.supported_facets.id() == mv_src.supported_facets.id());
         mv_dst.supported_facets.assign(mv_src.supported_facets);
         assert(mv_dst.seam_facets.id() == mv_src.seam_facets.id());
@@ -1717,8 +1717,8 @@ void Print::auto_assign_extruders(ModelObject* model_object) const
     for (size_t volume_id = 0; volume_id < model_object->volumes.size(); ++ volume_id) {
         ModelVolume *volume = model_object->volumes[volume_id];
         //FIXME Vojtech: This assigns an extruder ID even to a modifier volume, if it has a material assigned.
-        if ((volume->is_model_part() || volume->is_modifier()) && ! volume->material_id().empty() && ! volume->config.has("extruder"))
-            volume->config.set("extruder", int(volume_id + 1));
+        if ((volume->is_model_part() || volume->is_modifier()) && ! volume->material_id().empty() && ! volume->config().has("extruder"))
+            volume->set_extruder(volume_id + 1);
     }
 }
 

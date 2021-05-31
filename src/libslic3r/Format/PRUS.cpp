@@ -289,7 +289,7 @@ static void extract_model_from_archive(
     if (extruder_id != (unsigned int)-1) {
         char str_extruder[64];
         sprintf(str_extruder, "%ud", extruder_id);
-        volume->config.set_deserialize("extruder", str_extruder);
+        volume->set_config().set_deserialize("extruder", str_extruder);
     }
 }
 

@@ -2271,6 +2271,8 @@ Plater::priv::~priv()
 
 void Plater::priv::update(unsigned int flags)
 {
+    if(flags == ((unsigned int)UpdateParams::FORCE_BACKGROUND_PROCESSING_UPDATE | (unsigned int)UpdateParams::POSTPONE_VALIDATION_ERROR_MESSAGE) && this->q->model().objects.size() > 0 && this->q->model().objects[0]->volumes.size() > 1)
+        std::cout << "Plater::priv::update 1 :" << this->q->model().objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
     // the following line, when enabled, causes flickering on NVIDIA graphics cards
 //    wxWindowUpdateLocker freeze_guard(q);
     if (get_config("autocenter") == "1") {
@@ -3030,6 +3032,8 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
     this->update_print_volume_state();
     // Apply new config to the possibly running background task.
     bool               was_running = this->background_process.running();
+    if(this->q->model().objects.size() >0)
+        std::cout << "Plater::priv::update_background_process :" << this->q->model().objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
     Print::ApplyStatus invalidated = this->background_process.apply(this->q->model(), wxGetApp().preset_bundle->full_config());
 
     // Just redraw the 3D canvas without reloading the scene to consume the update of the layer height profile.
@@ -3415,7 +3419,7 @@ void Plater::priv::reload_from_disk()
                     old_model_object->add_volume(*new_model_object->volumes[new_volume_idx]);
                     ModelVolume* new_volume = old_model_object->volumes.back();
                     new_volume->set_new_unique_id();
-                    new_volume->config.apply(old_volume->config);
+                    new_volume->set_config().apply(old_volume->config());
                     new_volume->set_type(old_volume->type());
                     new_volume->set_material_id(old_volume->material_id());
                     new_volume->set_transformation(old_volume->get_transformation() * old_volume->source.transform);
@@ -4728,9 +4732,11 @@ void Plater::priv::undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator 
     // Make a copy of the snapshot, undo/redo could invalidate the iterator
     const UndoRedo::Snapshot snapshot_copy = *it_snapshot;
     // Do the jump in time.
+    std::cout << "Plater::priv::undo_redo_to 1 :" << &model << " , " << model.objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt()<< " ? "<< (it_snapshot->timestamp < this->undo_redo_stack().active_snapshot_time()) << "\n";
     if (it_snapshot->timestamp < this->undo_redo_stack().active_snapshot_time() ?
         this->undo_redo_stack().undo(model, this->view3D->get_canvas3d()->get_selection(), this->view3D->get_canvas3d()->get_gizmos_manager(), top_snapshot_data, it_snapshot->timestamp) :
         this->undo_redo_stack().redo(model, this->view3D->get_canvas3d()->get_gizmos_manager(), it_snapshot->timestamp)) {
+        std::cout << "Plater::priv::undo_redo_to 2 :" << &model << " , " << model.objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
         if (printer_technology_changed) {
             // Switch to the other printer technology. Switch to the last printer active for that particular technology.
             AppConfig *app_config = wxGetApp().app_config;
@@ -4766,6 +4772,8 @@ void Plater::priv::undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator 
                                                                                           ObjectList::SELECTION_MODE::smUndef);
         if (new_selected_settings_on_sidebar || new_selected_layer_on_sidebar)
             this->sidebar->obj_list()->set_selected_layers_range_idx(layer_range_idx);
+        std::cout << "Plater::priv::undo_redo_to 3 :" << &model<<" , "<<model.objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
+        std::cout << "Plater::priv::undo_redo_to 4 :" << &this->q->model() << " , " << this->q->model().objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
 
         this->update_after_undo_redo(snapshot_copy, temp_snapshot_was_taken);
         // Enable layer editing after the Undo / Redo jump.
@@ -4778,6 +4786,7 @@ void Plater::priv::update_after_undo_redo(const UndoRedo::Snapshot& snapshot, bo
 {
     this->view3D->get_canvas3d()->get_selection().clear();
     // Update volumes from the deserializd model, always stop / update the background processing (for both the SLA and FFF technologies).
+    std::cout << "Plater::priv::update_after_undo_redo :" << &this->q->model() << " , " << this->q->model().objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
     this->update((unsigned int)UpdateParams::FORCE_BACKGROUND_PROCESSING_UPDATE | (unsigned int)UpdateParams::POSTPONE_VALIDATION_ERROR_MESSAGE);
     // Release old snapshots if the memory allocated is excessive. This may remove the top most snapshot if jumping to the very first snapshot.
     //if (temp_snapshot_was_taken)

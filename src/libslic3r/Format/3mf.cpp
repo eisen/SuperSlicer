@@ -1970,7 +1970,7 @@ namespace Slic3r {
                 else if (metadata.key == SOURCE_IN_INCHES)
                     volume->source.is_converted_from_inches = metadata.value == "1";
                 else
-                    volume->config.set_deserialize(metadata.key, metadata.value);
+                    volume->set_config().set_deserialize(metadata.key, metadata.value);
             }
         }
 
@@ -2841,17 +2841,21 @@ namespace Slic3r {
                             }
 
                             // stores volume's config data
-                            for (std::string key : volume->config.keys())
+                            for (std::string key : volume->config().keys())
                             {
                                 // config
+                                std::string value = volume->config().opt_serialize(key);
                                 if (file_path == MODEL_PRUSA_CONFIG_FILE) {
                                     // convert to prusa config
-                                    std::string value = volume->config.opt_serialize(key);
-                                    volume->config.to_prusa(key, value);
+                                    volume->config().to_prusa(key, value);
                                     if (!key.empty())
                                         stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" " << KEY_ATTR << "=\"" << key << "\" " << VALUE_ATTR << "=\"" << value << "\"/>\n";
                                 } else {
-                                    stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" " << KEY_ATTR << "=\"" << key << "\" " << VALUE_ATTR << "=\"" << volume->config.opt_serialize(key) << "\"/>\n";
+                                    stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" " << KEY_ATTR << "=\"" << key << "\" " << VALUE_ATTR << "=\"" << value << "\"/>\n";
+                                }
+                                if (key == "bottom_fill_pattern" && value.empty()) {
+                                    std::string value = volume->config().opt_serialize(key);
+                                    std::cout << key << " : '" << value << "^n";
                                 }
                             }
 

@@ -503,7 +503,7 @@ ModelConfig& ObjectList::get_item_config(const wxDataViewItem& item) const
     const int vol_idx = type & itVolume ? m_objects_model->GetVolumeIdByItem(item) : -1;
 
     assert(obj_idx >= 0 || ((type & itVolume) && vol_idx >=0));
-    return type & itVolume ?(*m_objects)[obj_idx]->volumes[vol_idx]->config :
+    return type & itVolume ?(*m_objects)[obj_idx]->volumes[vol_idx]->set_config() :
            type & itLayer  ?(*m_objects)[obj_idx]->layer_config_ranges[m_objects_model->GetLayerRangeByItem(item)] :
                             (*m_objects)[obj_idx]->config;
 }
@@ -529,11 +529,11 @@ void ObjectList::update_extruder_values_for_items(const size_t max_extruder)
             for (size_t id = 0; id < object->volumes.size(); id++) {
                 item = m_objects_model->GetItemByVolumeId(i, id);
                 if (!item) continue;
-                if (!object->volumes[id]->config.has("extruder") ||
-                    size_t(object->volumes[id]->config.extruder()) > max_extruder)
+                if (!object->volumes[id]->config().has("extruder") ||
+                    size_t(object->volumes[id]->config().extruder()) > max_extruder)
                     extruder = _(L("default"));
                 else
-                    extruder = wxString::Format("%d", object->volumes[id]->config.extruder()); 
+                    extruder = wxString::Format("%d", object->volumes[id]->config().extruder()); 
 
                 m_objects_model->SetExtruder(extruder, item);
             }
@@ -588,7 +588,7 @@ void ObjectList::update_extruder_in_config(const wxDataViewItem& item)
         const int volume_id = m_objects_model->GetVolumeIdByItem(item);
         if (obj_idx < 0 || volume_id < 0)
             return;
-        m_config = &(*m_objects)[obj_idx]->volumes[volume_id]->config;
+        m_config = &(*m_objects)[obj_idx]->volumes[volume_id]->set_config();
         }
         else if (item_type & itLayer)
             m_config = &get_item_config(item);
@@ -835,8 +835,8 @@ void ObjectList::paste_volumes_into_list(int obj_idx, const ModelVolumePtrs& vol
     {
         const wxDataViewItem& vol_item = m_objects_model->AddVolumeChild(object_item, wxString::FromUTF8(volume->name.c_str()), volume->type(), 
             volume->get_mesh_errors_count()>0 ,
-            volume->config.has("extruder") ? volume->config.extruder() : 0);
-        add_settings_item(vol_item, &volume->config.get());
+            volume->config().has("extruder") ? volume->config().extruder() : 0);
+        add_settings_item(vol_item, &volume->config().get());
         items.Add(vol_item);
     }
 
@@ -2193,7 +2193,7 @@ void ObjectList::load_part( ModelObject* model_object,
                 volumes_info.push_back(std::make_pair(from_u8(new_volume->name), new_volume->get_mesh_errors_count()>0));
 
                 // set a default extruder value, since user can't add it manually
-                new_volume->config.set_key_value("extruder", new ConfigOptionInt(0));
+                new_volume->set_extruder(0);
             }
         }
     }
@@ -2286,7 +2286,7 @@ void ObjectList::load_generic_subobject(const std::string& type_name, const Mode
     const wxString name = _(L(base_name)) + "-" + _(type_name);
     new_volume->name = into_u8(name);
     // set a default extruder value, since user can't add it manually
-    new_volume->config.set_key_value("extruder", new ConfigOptionInt(0));
+    new_volume->set_extruder(0);
 
     changed_object(obj_idx);
     if (type == ModelVolumeType::MODEL_PART)
@@ -2340,7 +2340,7 @@ void ObjectList::load_mesh_object(const TriangleMesh &mesh, const wxString &name
     ModelVolume* new_volume = new_object->add_volume(mesh);
     new_volume->name = into_u8(name);
     // set a default extruder value, since user can't add it manually
-    new_volume->config.set_key_value("extruder", new ConfigOptionInt(0));
+    new_volume->set_extruder(0);
     new_object->invalidate_bounding_box();
     new_object->translate(-bb.center());
 
@@ -2494,9 +2494,9 @@ bool ObjectList::del_subobject_from_object(const int obj_idx, const int idx, con
         if (object->volumes.size() == 1)
         {
             const auto last_volume = object->volumes[0];
-            if (!last_volume->config.empty()) {
-                object->config.apply(last_volume->config);
-                last_volume->config.clear();
+            if (!last_volume->config().empty()) {
+                object->config.apply(last_volume->config());
+                last_volume->set_config().clear();
             }
         }
     }
@@ -2552,10 +2552,10 @@ void ObjectList::split()
         const wxDataViewItem& vol_item = m_objects_model->AddVolumeChild(parent, from_u8(volume->name),
             volume->is_modifier() ? ModelVolumeType::PARAMETER_MODIFIER : ModelVolumeType::MODEL_PART,
             volume->get_mesh_errors_count()>0,
-            volume->config.has("extruder") ? volume->config.extruder() : 0,
+            volume->config().has("extruder") ? volume->config().extruder() : 0,
             false);
         // add settings to the part, if it has those
-        add_settings_item(vol_item, &volume->config.get());
+        add_settings_item(vol_item, &volume->config().get());
     }
 
     model_object->input_file.clear();
@@ -2728,7 +2728,7 @@ void ObjectList::merge(bool to_multipart_object)
                 ModelVolume* volume = new_object->volumes.back();
                 const ConfigOption* option = from_config.option("extruder");
                 if (option)
-                    volume->config.set_key_value("extruder", option->clone());
+                    volume->set_config().set_key_value("extruder", option->clone());
             }
 
             // merge layers
@@ -2971,7 +2971,7 @@ void ObjectList::part_selection_changed()
                     else if (parent_type & itVolume) {
                         og_name = _(L("Part Settings to modify"));
                         volume_id = m_objects_model->GetVolumeIdByItem(parent);
-                        m_config = &(*m_objects)[obj_idx]->volumes[volume_id]->config;
+                        m_config = &(*m_objects)[obj_idx]->volumes[volume_id]->set_config();
                     }
                     else if (parent_type & itLayer) {
                         og_name = _(L("Layer range Settings to modify"));
@@ -2982,7 +2982,7 @@ void ObjectList::part_selection_changed()
                 else if (type & itVolume) {
                     og_name = _(L("Part manipulation"));
                     volume_id = m_objects_model->GetVolumeIdByItem(item);
-                    m_config = &(*m_objects)[obj_idx]->volumes[volume_id]->config;
+                    m_config = &(*m_objects)[obj_idx]->volumes[volume_id]->set_config();
                     update_and_show_manipulations = true;
                 }
                 else if (type & itInstance) {
@@ -3113,9 +3113,9 @@ void ObjectList::add_object_to_list(size_t obj_idx, bool call_selection_changed)
                 from_u8(volume->name),
                 volume->type(),
                 volume->get_mesh_errors_count()>0,
-                volume->config.has("extruder") ? volume->config.extruder() : 0,
+                volume->config().has("extruder") ? volume->config().extruder() : 0,
                 false);
-            add_settings_item(vol_item, &volume->config.get());
+            add_settings_item(vol_item, &volume->config().get());
         }
         Expand(item);
     }
@@ -4199,7 +4199,7 @@ void ObjectList::change_part_type()
     }
     else if (!settings_item && 
               (new_type == ModelVolumeType::MODEL_PART || new_type == ModelVolumeType::PARAMETER_MODIFIER)) {
-        add_settings_item(item, &volume->config.get());
+        add_settings_item(item, &volume->config().get());
     }
 }
 
@@ -4212,10 +4212,10 @@ void ObjectList::last_volume_is_deleted(const int obj_idx)
     auto volume = (*m_objects)[obj_idx]->volumes.front();
 
     // clear volume's config values
-    volume->config.clear();
+    volume->set_config().clear();
 
     // set a default extruder value, since user can't add it manually
-    volume->config.set_key_value("extruder", new ConfigOptionInt(0));
+    volume->set_extruder(0);
 }
 
 void ObjectList::update_and_show_object_settings_item()

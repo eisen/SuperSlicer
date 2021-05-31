@@ -701,7 +701,7 @@ void AMFParserContext::endElement(const char * /* name */)
                         config = &m_object->config;
                 }
                 else if (m_path.size() == 5 && m_path[3] == NODE_TYPE_VOLUME && m_volume)
-                    config = &m_volume->config;
+                    config = &m_volume->set_config();
                 else if (m_path.size() == 5 && m_path[3] == NODE_TYPE_RANGE && m_object && !m_object->layer_config_ranges.empty()) {
                     auto it  = --m_object->layer_config_ranges.end();
                     config = &it->second;
@@ -1188,8 +1188,8 @@ bool store_amf(std::string &path, Model *model, const DynamicPrintConfig *config
                 stream << "      <volume>\n";
             else
                 stream << "      <volume materialid=\"" << volume->material_id() << "\">\n";
-            for (const std::string &key : volume->config.keys())
-                stream << "        <metadata type=\"slic3r." << key << "\">" << volume->config.opt_serialize(key) << "</metadata>\n";
+            for (const std::string &key : volume->config().keys())
+                stream << "        <metadata type=\"slic3r." << key << "\">" << volume->config().opt_serialize(key) << "</metadata>\n";
             if (!volume->name.empty())
                 stream << "        <metadata type=\"name\">" << xml_escape(volume->name) << "</metadata>\n";
             if (volume->is_modifier())

@@ -567,8 +567,10 @@ public:
 	template<typename T> ObjectID save_immutable_object(std::shared_ptr<const T> &object, bool optional);
 	template<typename T> T* load_mutable_object(const Slic3r::ObjectID id);
 	template<typename T> std::shared_ptr<const T> load_immutable_object(const Slic3r::ObjectID id, bool optional);
-	template<typename T> void load_mutable_object(const Slic3r::ObjectID id, T &target);
-
+    template<typename T> void load_mutable_object(const Slic3r::ObjectID id, T& target);
+    template<typename T> std::string test_save(const T& object);
+    template<typename T> void test_load(std::string data, T& target);
+    
 #ifdef SLIC3R_UNDOREDO_DEBUG
 	std::string format() const {
 		std::string out = "Objects\n";
@@ -791,6 +793,11 @@ template<typename T> ObjectID StackImpl::save_mutable_object(const T &object)
 			Slic3r::UndoRedo::OutputArchive archive(*this, oss);
 			archive(object);
 		}
+        std::string data = oss.str();
+        std::cout << "save " << data.size()<<": ";
+        for (int i = 0; i < data.size(); i++)
+            std::cout << " "<< uint16_t(data[i]);
+        std::cout << " \n";
 		object_history->save(m_active_snapshot_time, m_current_time, oss.str());
 	}
 	return object.id();
@@ -838,15 +845,55 @@ template<typename T> void StackImpl::load_mutable_object(const Slic3r::ObjectID 
 	assert(it_object_history != m_objects.end());
 	auto *object_history = static_cast<const MutableObjectHistory<T>*>(it_object_history->second.get());
 	// Then get the data associated with the object history and m_active_snapshot_time.
+    std::vector<uint8_t> vata;
+    std::istringstream iss2(object_history->load(m_active_snapshot_time));
+    std::cout << "load " << ": ";
+    int size = 0;
+    char c;
+    while (iss2.get(c)) {
+        std::cout << " " << uint16_t(c);
+        size++;
+    }
+    std::cout << " <= "<< size<<"\n";
 	std::istringstream iss(object_history->load(m_active_snapshot_time));
 	Slic3r::UndoRedo::InputArchive archive(*this, iss);
 	target.m_id = id;
 	archive(target);
 }
 
+template<typename T> std::string StackImpl::test_save(const T& object)
+{
+    // Serialize the object into a string.
+
+    {
+        Slic3r::UndoRedo::OutputArchive archive(*this, ConfigOptionEnumGeneric::config_hpp_buff);
+        archive(object);
+    }
+    std::string data = ConfigOptionEnumGeneric::config_hpp_buff.str();
+    std::cout << "save " << data.size() << ": ";
+    for (int i = 0; i < data.size(); i++)
+        std::cout << " " << uint16_t(data[i]);
+    std::cout << " \n";
+    ConfigOptionEnumGeneric::config_hpp_buff.clear();
+    return data;
+}
+
+template<typename T> void StackImpl::test_load(std::string data, T& target)
+{
+    std::cout << "load " << data.size() << ": ";
+    for (int i = 0; i < data.size(); i++)
+        std::cout << " " << uint16_t(data[i]);
+    std::cout << " \n";
+    std::istringstream ConfigOptionEnumGeneric::config_hpp_buff(data);
+    Slic3r::UndoRedo::InputArchive archive(*this, ConfigOptionEnumGeneric::config_hpp_buff);
+    archive(target);
+    ConfigOptionEnumGeneric::config_hpp_buff.clear();
+}
+
 // Store the current application state onto the Undo / Redo stack, remove all snapshots after m_active_snapshot_time.
 void StackImpl::take_snapshot(const std::string& snapshot_name, const Slic3r::Model& model, const Slic3r::GUI::Selection& selection, const Slic3r::GUI::GLGizmosManager& gizmos, const SnapshotData &snapshot_data)
 {
+    std::cout << "take snapshot\n";
 	// Release old snapshot data.
 	assert(m_active_snapshot_time <= m_current_time);
 	for (auto &kvp : m_objects)
@@ -857,6 +904,18 @@ void StackImpl::take_snapshot(const std::string& snapshot_name, const Slic3r::Mo
 	}
 	// Take new snapshots.
 	this->save_mutable_object<Slic3r::Model>(model);
+    std::cout << "end save model snapshot\n";
+    if (model.objects.size() > 0) {
+        std::string data = test_save(model.objects[0]->volumes[1]->config());
+        ModelConfigObject conf;
+        test_load(data, conf);
+        
+        const ConfigOption* opt = model.objects[0]->volumes[1]->config().option("bottom_fill_pattern");
+        data = test_save(*static_cast<const ConfigOptionEnumGeneric*>(opt));
+        ConfigOptionEnumGeneric option;
+        test_load(data, option);
+        std::cout << "now conf is " << conf.size() << "\n";
+    }
 	m_selection.volumes_and_instances.clear();
 	m_selection.volumes_and_instances.reserve(selection.get_volume_idxs().size());
 	m_selection.mode = selection.get_mode();
@@ -890,6 +949,7 @@ void StackImpl::load_snapshot(size_t timestamp, Slic3r::Model& model, Slic3r::GU
 	model.clear_objects();
 	model.clear_materials();
 	this->load_mutable_object<Slic3r::Model>(ObjectID(it_snapshot->model_id), model);
+    std::cout << "StackImpl::load_snapshot 2 :" << &model << " , " << model.objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
 	model.update_links_bottom_up_recursive();
 	m_selection.volumes_and_instances.clear();
 	this->load_mutable_object<Selection>(m_selection.id(), m_selection);
@@ -922,6 +982,7 @@ bool StackImpl::has_redo_snapshot() const
 
 bool StackImpl::undo(Slic3r::Model &model, const Slic3r::GUI::Selection &selection, Slic3r::GUI::GLGizmosManager &gizmos, const SnapshotData &snapshot_data, size_t time_to_load)
 {
+    std::cout << "StackImpl::undo 1 :" << &model << " , " << model.objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
 	assert(this->valid());
 	if (time_to_load == SIZE_MAX) {
 		auto it_current = std::lower_bound(m_snapshots.begin(), m_snapshots.end(), Snapshot(m_active_snapshot_time));
@@ -931,10 +992,12 @@ bool StackImpl::undo(Slic3r::Model &model, const Slic3r::GUI::Selection &selecti
 	}
 	assert(time_to_load < m_active_snapshot_time);
 	assert(std::binary_search(m_snapshots.begin(), m_snapshots.end(), Snapshot(time_to_load)));
+    std::cout << "StackImpl::undo 2 :" << &model << " , " << model.objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
 	bool new_snapshot_taken = false;
 	if (m_active_snapshot_time == m_snapshots.back().timestamp && ! m_snapshots.back().is_topmost_captured()) {
 		// The current state is temporary. The current state needs to be captured to be redoable.
         this->take_snapshot(topmost_snapshot_name, model, selection, gizmos, snapshot_data);
+        std::cout << "StackImpl::undo 3 :" << &model << " , " << model.objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
         // The line above entered another topmost_snapshot_name.
 		assert(m_snapshots.back().is_topmost());
 		assert(! m_snapshots.back().is_topmost_captured());
@@ -946,7 +1009,9 @@ bool StackImpl::undo(Slic3r::Model &model, const Slic3r::GUI::Selection &selecti
 		assert(m_snapshots.back().is_topmost_captured());
 		new_snapshot_taken = true;
 	}
+    std::cout << "StackImpl::undo 4 :" << &model << " , " << model.objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
     this->load_snapshot(time_to_load, model, gizmos);
+    std::cout << "StackImpl::undo 5 :" << &model << " , " << model.objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
 	if (new_snapshot_taken) {
 		// Release old snapshots if the memory allocated due to capturing the top most state is excessive.
 		// Don't release the snapshots here, release them first after the scene and background processing gets updated, as this will release some references
@@ -957,6 +1022,7 @@ bool StackImpl::undo(Slic3r::Model &model, const Slic3r::GUI::Selection &selecti
 	std::cout << "After undo" << std::endl;
  	this->print();
 #endif /* SLIC3R_UNDOREDO_DEBUG */
+    std::cout << "StackImpl::undo end :" << &model << " , " << model.objects[0]->volumes[1]->config().option("bottom_fill_pattern")->getInt() << "\n";
 	return true;
 }
 

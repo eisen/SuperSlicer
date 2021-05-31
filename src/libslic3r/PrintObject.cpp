@@ -2131,7 +2131,7 @@ namespace Slic3r {
         apply_to_print_region_config(config, volume.get_object()->config.get());
         if (layer_range_config != nullptr)
             apply_to_print_region_config(config, *layer_range_config);
-        apply_to_print_region_config(config, volume.config.get());
+        apply_to_print_region_config(config, volume.config().get());
         if (!volume.material_id().empty())
             apply_to_print_region_config(config, volume.material()->config.get());
         // Clamp invalid extruders to the default extruder (with index 1).

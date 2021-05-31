@@ -580,9 +580,14 @@ public:
     void                set_mesh(std::shared_ptr<const TriangleMesh> &mesh) { m_mesh = mesh; }
     void                set_mesh(std::unique_ptr<const TriangleMesh> &&mesh) { m_mesh = std::move(mesh); }
 	void				reset_mesh() { m_mesh = std::make_shared<const TriangleMesh>(); }
+private:
     // Configuration parameters specific to an object model geometry or a modifier volume, 
     // overriding the global Slic3r settings and the ModelObject settings.
-    ModelConfigObject	config;
+    ModelConfigObject	m_config;
+public:
+    const ModelConfigObject& config() const { return m_config; }
+    ModelConfigObject& set_config() { return m_config; }
+    void set_extruder(int idx) { m_config.set_key_value("extruder", new ConfigOptionInt(idx)); }
 
     // List of mesh facets to be supported/unsupported.
     FacetsAnnotation    supported_facets;
@@ -674,7 +679,7 @@ public:
 
 	void set_new_unique_id() { 
         ObjectBase::set_new_unique_id();
-        this->config.set_new_unique_id();
+        this->m_config.set_new_unique_id();
         this->supported_facets.set_new_unique_id();
         this->seam_facets.set_new_unique_id();
     }
@@ -715,10 +720,10 @@ private:
 	ModelVolume(ModelObject *object, const TriangleMesh &mesh) : m_mesh(new TriangleMesh(mesh)), m_type(ModelVolumeType::MODEL_PART), object(object)
     {
 		assert(this->id().valid()); 
-        assert(this->config.id().valid()); 
+        assert(this->m_config.id().valid());
         assert(this->supported_facets.id().valid()); 
         assert(this->seam_facets.id().valid()); 
-        assert(this->id() != this->config.id());
+        assert(this->id() != this->m_config.id());
         assert(this->id() != this->supported_facets.id());
         assert(this->id() != this->seam_facets.id());
         if (mesh.stl.stats.number_of_facets > 1)
@@ -727,10 +732,10 @@ private:
     ModelVolume(ModelObject *object, TriangleMesh &&mesh, TriangleMesh &&convex_hull) :
 		m_mesh(new TriangleMesh(std::move(mesh))), m_convex_hull(new TriangleMesh(std::move(convex_hull))), m_type(ModelVolumeType::MODEL_PART), object(object) {
 		assert(this->id().valid()); 
-        assert(this->config.id().valid()); 
+        assert(this->m_config.id().valid());
         assert(this->supported_facets.id().valid()); 
         assert(this->seam_facets.id().valid()); 
-        assert(this->id() != this->config.id());
+        assert(this->id() != this->m_config.id());
         assert(this->id() != this->supported_facets.id());
         assert(this->id() != this->seam_facets.id());
 	}
@@ -739,44 +744,44 @@ private:
     ModelVolume(ModelObject *object, const ModelVolume &other) :
         ObjectBase(other),
         name(other.name), source(other.source), m_mesh(other.m_mesh), m_convex_hull(other.m_convex_hull),
-        config(other.config), m_type(other.m_type), object(object), m_transformation(other.m_transformation),
+        m_config(other.m_config), m_type(other.m_type), object(object), m_transformation(other.m_transformation),
         supported_facets(other.supported_facets), seam_facets(other.seam_facets)
     {
 		assert(this->id().valid()); 
-        assert(this->config.id().valid()); 
+        assert(this->m_config.id().valid());
         assert(this->supported_facets.id().valid());
         assert(this->seam_facets.id().valid());
-        assert(this->id() != this->config.id());
+        assert(this->id() != this->m_config.id());
         assert(this->id() != this->supported_facets.id());
         assert(this->id() != this->seam_facets.id());
 		assert(this->id() == other.id());
-        assert(this->config.id() == other.config.id());
+        assert(this->m_config.id() == other.m_config.id());
         assert(this->supported_facets.id() == other.supported_facets.id());
         assert(this->seam_facets.id() == other.seam_facets.id());
         this->set_material_id(other.material_id());
     }
     // Providing a new mesh, therefore this volume will get a new unique ID assigned.
     ModelVolume(ModelObject *object, const ModelVolume &other, const TriangleMesh &&mesh) :
-        name(other.name), source(other.source), m_mesh(new TriangleMesh(std::move(mesh))), config(other.config), m_type(other.m_type), object(object), m_transformation(other.m_transformation)
+        name(other.name), source(other.source), m_mesh(new TriangleMesh(std::move(mesh))), m_config(other.m_config), m_type(other.m_type), object(object), m_transformation(other.m_transformation)
     {
 		assert(this->id().valid()); 
-        assert(this->config.id().valid()); 
+        assert(this->m_config.id().valid());
         assert(this->supported_facets.id().valid());
         assert(this->seam_facets.id().valid());
-        assert(this->id() != this->config.id());
+        assert(this->id() != this->m_config.id());
         assert(this->id() != this->supported_facets.id());
         assert(this->id() != this->seam_facets.id());
 		assert(this->id() != other.id());
-        assert(this->config.id() == other.config.id());
+        assert(this->m_config.id() == other.m_config.id());
         this->set_material_id(other.material_id());
-        this->config.set_new_unique_id();
+        this->m_config.set_new_unique_id();
         if (mesh.stl.stats.number_of_facets > 1)
             calculate_convex_hull();
-		assert(this->config.id().valid()); 
-        assert(this->config.id() != other.config.id()); 
+		assert(this->m_config.id().valid());
+        assert(this->m_config.id() != other.m_config.id());
         assert(this->supported_facets.id() != other.supported_facets.id());
         assert(this->seam_facets.id() != other.seam_facets.id());
-        assert(this->id() != this->config.id());
+        assert(this->id() != this->m_config.id());
         assert(this->supported_facets.empty());
         assert(this->seam_facets.empty());
     }
@@ -786,9 +791,9 @@ private:
 	friend class cereal::access;
 	friend class UndoRedo::StackImpl;
 	// Used for deserialization, therefore no IDs are allocated.
-	ModelVolume() : ObjectBase(-1), config(-1), supported_facets(-1), seam_facets(-1), object(nullptr) {
+	ModelVolume() : ObjectBase(-1), m_config(-1), supported_facets(-1), seam_facets(-1), object(nullptr) {
 		assert(this->id().invalid());
-        assert(this->config.id().invalid());
+        assert(this->m_config.id().invalid());
         assert(this->supported_facets.id().invalid());
         assert(this->seam_facets.id().invalid());
 	}
@@ -797,7 +802,7 @@ private:
         ar(name, source, m_mesh, m_type, m_material_id, m_transformation, m_is_splittable, has_convex_hull);
         cereal::load_by_value(ar, supported_facets);
         cereal::load_by_value(ar, seam_facets);
-        cereal::load_by_value(ar, config);
+        cereal::load_by_value(ar, m_config);
 		assert(m_mesh);
 		if (has_convex_hull) {
 			cereal::load_optional(ar, m_convex_hull);
@@ -812,7 +817,7 @@ private:
         ar(name, source, m_mesh, m_type, m_material_id, m_transformation, m_is_splittable, has_convex_hull);
         cereal::save_by_value(ar, supported_facets);
         cereal::save_by_value(ar, seam_facets);
-        cereal::save_by_value(ar, config);
+        cereal::save_by_value(ar, m_config);
 		if (has_convex_hull)
 			cereal::save_optional(ar, m_convex_hull);
 	}

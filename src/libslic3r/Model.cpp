@@ -457,7 +457,7 @@ void Model::convert_multipart_object(unsigned int max_extruders)
             auto copy_volume = [o, max_extruders, &counter, &extruder_counter](ModelVolume *new_v) {
                 assert(new_v != nullptr);
                 new_v->name = o->name + "_" + std::to_string(counter++);
-                new_v->config.set_deserialize("extruder", auto_extruder_id(max_extruders, extruder_counter));
+                new_v->set_config().set_deserialize("extruder", auto_extruder_id(max_extruders, extruder_counter));
                 return new_v;
             };
             if (o->instances.empty()) {
@@ -1107,9 +1107,9 @@ void ModelObject::convert_units(ModelObjectPtrs& new_objects, bool from_imperial
             vol->name = volume->name;
             vol->set_type(volume->type());
             // Don't copy the config's ID.
-            vol->config.assign_config(volume->config);
-            assert(vol->config.id().valid());
-            assert(vol->config.id() != volume->config.id());
+            vol->set_config().assign_config(volume->config());
+            assert(vol->config().id().valid());
+            assert(vol->config().id() != volume->config().id());
             vol->set_material(volume->material_id(), *volume->material());
             vol->source.input_file = volume->source.input_file;
             vol->source.object_idx = (int)new_objects.size();
@@ -1259,18 +1259,18 @@ ModelObjectPtrs ModelObject::cut(size_t instance, coordf_t z, bool keep_upper, b
                 ModelVolume* vol = upper->add_volume(upper_mesh);
                 vol->name	= volume->name;
                 // Don't copy the config's ID.
-                vol->config.assign_config(volume->config);
-    			assert(vol->config.id().valid());
-	    		assert(vol->config.id() != volume->config.id());
+                vol->set_config().assign_config(volume->config());
+    			assert(vol->config().id().valid());
+	    		assert(vol->config().id() != volume->config().id());
                 vol->set_material(volume->material_id(), *volume->material());
             }
             if (keep_lower && lower_mesh.facets_count() > 0) {
                 ModelVolume* vol = lower->add_volume(lower_mesh);
                 vol->name	= volume->name;
                 // Don't copy the config's ID.
-                vol->config.assign_config(volume->config);
-    			assert(vol->config.id().valid());
-	    		assert(vol->config.id() != volume->config.id());
+                vol->set_config().assign_config(volume->config());
+    			assert(vol->config().id().valid());
+	    		assert(vol->config().id() != volume->config().id());
                 vol->set_material(volume->material_id(), *volume->material());
 
                 // Compute the lower part instances' bounding boxes to figure out where to place
@@ -1644,7 +1644,7 @@ int ModelVolume::extruder_id() const
 {
     int extruder_id = -1;
     if (this->is_model_part()) {
-        const ConfigOption *opt = this->config.option("extruder");
+        const ConfigOption *opt = this->m_config.option("extruder");
         if ((opt == nullptr) || (opt->getInt() == 0))
             opt = this->object->config.option("extruder");
         extruder_id = (opt == nullptr) ? 0 : opt->getInt();
@@ -1766,7 +1766,7 @@ size_t ModelVolume::split(unsigned int max_extruders)
         this->object->volumes[ivolume]->center_geometry_after_creation();
         this->object->volumes[ivolume]->translate(offset);
         this->object->volumes[ivolume]->name = name + "_" + std::to_string(idx + 1);
-        this->object->volumes[ivolume]->config.set_deserialize("extruder", auto_extruder_id(max_extruders, extruder_counter));
+        this->object->volumes[ivolume]->m_config.set_deserialize("extruder", auto_extruder_id(max_extruders, extruder_counter));
         delete mesh;
         ++ idx;
     }
@@ -1803,7 +1803,7 @@ void ModelObject::scale_to_fit(const Vec3d &size)
 void ModelVolume::assign_new_unique_ids_recursive()
 {
     ObjectBase::set_new_unique_id();
-    config.set_new_unique_id();
+    m_config.set_new_unique_id();
     supported_facets.set_new_unique_id();
     seam_facets.set_new_unique_id();
 }
@@ -2147,7 +2147,7 @@ extern bool model_has_advanced_features(const Model &model)
         	return true;
         // Is there any modifier or advanced config data?
         for (const ModelVolume* model_volume : model_object->volumes)
-            if (! model_volume->is_model_part() || config_is_advanced(model_volume->config))
+            if (! model_volume->is_model_part() || config_is_advanced(model_volume->config()))
             	return true;
     }
     return false;
@@ -2168,7 +2168,7 @@ void check_model_ids_validity(const Model &model)
         check(model_object->config.id());
         for (const ModelVolume *model_volume : model_object->volumes) {
             check(model_volume->id());
-	        check(model_volume->config.id());
+	        check(model_volume->config().id());
         }
         for (const ModelInstance *model_instance : model_object->instances)
             check(model_instance->id());
@@ -2192,7 +2192,7 @@ void check_model_ids_equal(const Model &model1, const Model &model2)
         assert(model_object1.instances.size() == model_object2.instances.size());
         for (size_t i = 0; i < model_object1.volumes.size(); ++ i) {
             assert(model_object1.volumes[i]->id() == model_object2.volumes[i]->id());
-        	assert(model_object1.volumes[i]->config.id() == model_object2.volumes[i]->config.id());
+        	assert(model_object1.volumes[i]->config().id() == model_object2.volumes[i]->config().id());
         }
         for (size_t i = 0; i < model_object1.instances.size(); ++ i)
             assert(model_object1.instances[i]->id() == model_object2.instances[i]->id());

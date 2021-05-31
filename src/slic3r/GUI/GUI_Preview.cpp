@@ -818,8 +818,8 @@ void Preview::update_layers_slider_mode()
 
                     if (object->volumes.size() > 1)
                         for (ModelVolume* volume : object->volumes)
-                            if (volume->config.has("extruder") &&
-                                volume->config.option("extruder")->getInt() != extruder)
+                            if (volume->config().has("extruder") &&
+                                volume->config().option("extruder")->getInt() != extruder)
                                 return false;
 
                     for (const auto& range : object->layer_config_ranges)
